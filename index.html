@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#05070d" />
+  <title>跟踪委托计算器</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>TRAIL / 跟踪委托</h1>
+      <div class="sub">默认费率 挂单 0.02% / 吃单 0.05%。行情优先币安合约标记价。</div>
+    </div>
+    <div class="layout">
+      <button id="btnMobile" class="active" onclick="setLayout('mobile')">手机版</button>
+      <button id="btnDesk" onclick="setLayout('desktop')">电脑版</button>
+    </div>
+  </div>
+  <div class="wrap">
+  <div class="left">
+  <div class="dir">
+    <button id="btnLong" class="active-long" onclick="setDir('long')">做多</button>
+    <button id="btnShort" onclick="setDir('short')">做空</button>
+  </div>
+  <div class="card">
+    <label>持仓截图（本地识别，图不上传到别的网站）</label>
+    <div class="drop" id="drop" onclick="document.getElementById('shot').click()">
+      点这里选图，或直接粘贴截图
+      <div id="preview"></div>
+    </div>
+    <input id="shot" type="file" accept="image/*" class="hidden" onchange="onShot(event)" />
+    <div class="ocrbtns">
+      <button onclick="document.getElementById('shot').click()">选截图</button>
+      <button onclick="runOcr()">识别并填表</button>
+    </div>
+    <div class="hint" id="ocrMsg" style="margin-top:8px">第一次识别会下载中文模型，大约十几秒。识别完请扫一眼数字对不对。</div>
+  </div>
+  <div class="card">
+    <div class="row3">
+      <div>
+        <label>币种</label>
+        <input id="symbol" type="text" autocapitalize="characters" value="" placeholder="如 BTC / USELESS" />
+      </div>
+      <div>
+        <label>行情源</label>
+        <input id="src" type="text" value="自动" readonly />
+      </div>
+      <button class="fetch" onclick="fetchPx()">拉最新价</button>
+    </div>
+    <div class="hint" id="pxMsg" style="margin-top:8px">点「拉最新价」优先取币安合约标记价，失败再试其他所。</div>
+  </div>
+  <div class="card">
+    <label>费率模式</label>
+    <div class="seg">
+      <button id="feeA" class="active" onclick="setFeeMode('maker')">挂单开+吃单平<br>0.07%</button>
+      <button id="feeB" onclick="setFeeMode('taker')">双边吃单<br>0.10%</button>
+      <button id="feeC" onclick="setFeeMode('custom')">自定义</button>
+    </div>
+    <div id="customFee" class="row2 hidden">
+      <div>
+        <label>开仓费率 %</label>
+        <input id="feeOpen" type="number" inputmode="decimal" value="0.02" oninput="syncFee()" />
+      </div>
+      <div>
+        <label>平仓费率 %</label>
+        <input id="feeClose" type="number" inputmode="decimal" value="0.05" oninput="syncFee()" />
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>往返手续费 %</label>
+        <input id="fee" type="number" inputmode="decimal" value="0.07" oninput="onFeeManual()" />
+      </div>
+      <div>
+        <label>平仓费率 %（估算用）</label>
+        <input id="feeCloseShow" type="number" inputmode="decimal" value="0.05" oninput="onCloseFee()" />
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row2">
+      <div>
+        <label>保证金 (U)</label>
+        <input id="margin" type="number" inputmode="decimal" value="" placeholder="例如 50" oninput="calc()" />
+      </div>
+      <div>
+        <label>杠杆倍数</label>
+        <input id="lev" type="number" inputmode="decimal" value="" placeholder="例如 20" oninput="calc()" />
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>回调百分比 (%)</label>
+        <input id="cb" type="number" inputmode="decimal" value="" placeholder="例如 2" oninput="calc()" />
+      </div>
+      <div>
+        <label>激活价（可选）</label>
+        <input id="actIn" type="number" inputmode="decimal" value="" placeholder="不填就按当前价回调" oninput="calc()" />
+        <div class="guide" id="actGuide">不填激活价时，用当前价当高点做回调。请先点「拉最新价」。拉到的是最新价，极值请自己改。</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>开仓价</label>
+        <input id="entry" type="number" inputmode="decimal" value="" placeholder="开仓均价" oninput="calc()" />
+      </div>
+      <div>
+        <label id="extLabel">当前价 / 高点</label>
+        <input id="extreme" type="number" inputmode="decimal" value="" placeholder="最新价，可改成极值" oninput="calc()" />
+      </div>
+    </div>
+    <button type="button" class="clearbtn" onclick="clearInputs()">清除输入</button>
+  </div>
+  </div>
+  <div class="right">
+  <div class="sec">1. 回调后执行价</div>
+  <div class="card result-exe">
+    <div class="hint" id="exeTitle">从最高价回调后的执行价</div>
+    <div class="big purple" id="exePrice">-</div>
+    <div class="hint" id="exeMove"></div>
+    <div class="kv"><span>相对开仓价涨跌</span><span id="exeVsEntry">-</span></div>
+    <div class="kv"><span>扣费前盈亏</span><span id="exePnl">-</span></div>
+    <div class="kv"><span>扣平仓费后盈亏</span><span id="exePnlNet">-</span></div>
+    <div class="note" id="exeExplain"></div>
+  </div>
+  <div class="sec">2. 保本激活价</div>
+  <div class="card result-be">
+    <div class="hint" id="beTitle">做多保本激活价</div>
+    <div class="big blue" id="bePrice">-</div>
+    <div class="hint" id="beMove"></div>
+    <div class="kv"><span>激活后立刻回调的触发价</span><span id="beExit">-</span></div>
+    <div class="kv"><span>相对开仓要先走</span><span id="beNeed">-</span></div>
+    <div class="kv"><span>你填的激活价</span><span id="actCmp">-</span></div>
+    <div class="note" id="beExplain"></div>
+  </div>
+  <div class="sec">3. 对比极值少赚多少</div>
+  <div class="card result">
+    <div class="hint" id="title">对比高峰，大约少赚</div>
+    <div class="big long" id="main">0.00 U</div>
+    <div class="hint" id="roe"></div>
+    <div class="kv"><span>快速估算（忽略涨跌幅）</span><span id="simple">0.00 U</span></div>
+    <div class="kv"><span>价格比（极值/开仓）</span><span id="ratio">1.00x</span></div>
+    <div class="kv"><span>占保证金比例</span><span id="pct">0%</span></div>
+    <div class="note" id="explain"></div>
+  </div>
+  <div class="sec">4. 结果表</div>
+  <div class="card">
+    <table class="out">
+      <tr><th>合约 / 方向</th><td id="tSym">-</td></tr>
+      <tr><th>杠杆 / 保证金</th><td id="tLev">-</td></tr>
+      <tr><th>开仓价</th><td id="tEntry">-</td></tr>
+      <tr><th>当前价</th><td id="tNow">-</td></tr>
+      <tr><th>激活价</th><td id="tAct">-</td></tr>
+      <tr><th>回调</th><td id="tCb">-</td></tr>
+      <tr><th>回调后执行价</th><td id="tExe">-</td></tr>
+      <tr><th>保本激活价</th><td id="tBe">-</td></tr>
+      <tr><th>激活价是否保本</th><td id="tOk">-</td></tr>
+      <tr><th>扣费后盈亏</th><td id="tNet">-</td></tr>
+      <tr><th id="tLostLab">对比极值少赚</th><td id="tLost">-</td></tr>
+    </table>
+  </div>
+  <div class="note">
+    截图本地识别。读不准把图发到 Grok 对话。行情优先币安合约标记价。
+  </div>
+  </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
